@@ -212,7 +212,7 @@ def deviceSubscribe(message) {
 def sendDeviceEvent(message) {
     topic = "${message.normalizedId}/"
 
-    if (mqttConnected) {
+    if (mqttConnected()) {
         connected()
     }
     
@@ -236,13 +236,14 @@ def sendDeviceEvent(message) {
 // Parse incoming message from the MQTT broker
 def parse(String event) {
     def message = interfaces.mqtt.parseMessage(event)  
-    def (name, hub, device, type) = message.topic.tokenize( '/' )
+    def (name, hub, device, type, attribute) = message.topic.tokenize( '/' )
     
     debug("[parse] Received MQTT message: ${message}")
     
     def json = new groovy.json.JsonOutput().toJson([
         device: device,
         type: type,
+        attribute: attribute,
         value: message.payload
 	])
     
@@ -255,6 +256,7 @@ def mqttClientStatus(status) {
 
 def publishMqtt(topic, payload, qos = 0, retained = false) {
     if (notMqttConnected()) {
+        debug("[publishMqtt] MQTT Not Connected, reconnecting...")
         initialize()
     }
     

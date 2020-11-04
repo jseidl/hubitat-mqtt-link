@@ -273,7 +273,8 @@ def capabilitiesPage() {
 		capability: "capability.doubleTapableButton",
 		attributes: [
 			"doubleTapped"
-		]
+		],
+        action: "actionDoubleTapButton"
 	],
 	"energyMeter": [
 		name: "Energy Meter",
@@ -325,7 +326,8 @@ def capabilitiesPage() {
 		capability: "capability.holdableButton",
 		attributes: [
 			"held" // 0 - 100
-		]
+		],
+        action: "actionHoldButton"
 	],	
 	"illuminanceMeasurement": [
 		name: "Illuminance Measurement",
@@ -448,7 +450,8 @@ def capabilitiesPage() {
 		attributes: [
             "numberOfButtons", // 1 - #
             "pushed" // 1 - #
-		]
+		],
+        action: "actionPushButton"
 	],	
 	"refresh": [
 		name: "Refresh",
@@ -787,18 +790,26 @@ def initialize() {
         settings[normalizeId].each { capability ->
             def capabilityCamel = lowerCamel(capability)
             def capabilitiesMap = CAPABILITY_MAP[capabilityCamel]
+            
+            if (!CAPABILITY_MAP.find{ it.key == capabilityCamel}) {
+                debug("{$capabilityCamel} not found")
+            } else {
+                capabilitiesMap["attributes"].each { attribute ->
+		    	    subscribe(device, attribute, inputHandler)
+                
+                    topic_key = "${capabilityCamel}/${attribute}"
+                
+                    if (!attributes.find{ it.key == topic_key }) {
+    	    			attributes[topic_key] = []
+		    	    }
+                    debug("${topic_key} => ${normalizeId}")
+                    attributes[topic_key].push(normalizeId)
+                
+		        }//end map
+            }//end if
 
-            capabilitiesMap["attributes"].each { attribute ->
-			    subscribe(device, attribute, inputHandler)
-		    }
-            
-            if (!attributes.containsKey(low)) {
-				attributes[capabilityCamel] = []
-			}
-            
-            attributes[capabilityCamel].push(normalizeId)
-        }
-    }
+        }//end settings map
+    }// end selectedDevices
     
 	// Subscribe to new events from devices
 	CAPABILITY_MAP.each { key, capability ->
@@ -843,15 +854,16 @@ def mqttLinkHandler(evt) {
 		return
 	}
 
-    def attribute = json.type
-    def capability = CAPABILITY_MAP[attribute]
+    def cap_key = json.type
+    def attribute = json.attribute
+    def capability = CAPABILITY_MAP[cap_key]
     def normalizedId = json.device.toString()
     def deviceName = state.selectedLookup[normalizedId]
     
     def selectedDevice = settings.selectedDevices.find { 
         device -> (device.displayName == deviceName)
     }
-    
+
     if (selectedDevice && settings[normalizedId] && capability["attributes"].contains(attribute)) {
         if (json.command == false) {
             if (selectedDevice.getSupportedCommands().any {it.name == "setStatus"}) {
@@ -1125,7 +1137,7 @@ def actionAudioVolume(device, attribute, value) {
 
 def actionColorControl(device, attribute, value) {
 	switch (attribute) {
-		case "setColor":
+		case "color":
 			def values = value.split(',')
 			def colormap = ["hue": values[0] as int, "saturation": values[1] as int]
 
@@ -1135,10 +1147,10 @@ def actionColorControl(device, attribute, value) {
 
 			device.setColor(colormap)
 			break
-		case "setHue":
+		case "hue":
 			device.setHue(value as int)
 			break
-		case "setSaturation":
+		case "saturation":
 			device.setSaturation(value as int)
 			break
 	}
@@ -1406,7 +1418,7 @@ def actionThermostatHeatingSetpoint(device, attribute, value) {
 }
 
 def actionThermostatMode(device, attribute, value) {
-	switch (attribute) {
+	/**switch (attribute) {
 		case "auto":
 			device.auto()
 			break
@@ -1425,7 +1437,8 @@ def actionThermostatMode(device, attribute, value) {
 		case "setThermostatMode":
 			device.setThermostatMode(value)
 			break
-    }
+    }**/
+    device.setThermostatMode(value)
 }
 
 def actionThermostatSchedule(device, attribute, value) {
@@ -1506,6 +1519,18 @@ def actionOnOff(device, attribute, value) {
 
 def actionRoutines(value) {
 	location.helloHome?.execute(value)
+}
+
+def actionPushButton(device, attribute, value) {
+    device.push(value)
+}
+
+def actionDoubleTapButton(device, attribute, value) {
+    device.doubleTap(value)
+}
+
+def actionHoldButton(device, attribute, value) {
+    device.hold(value)
 }
 
 def actionModes(value) {
